@@ -1,7 +1,7 @@
 import { doc, getDoc } from "firebase/firestore";
 import { useEffect, useState } from "react";
 import { Image, Linking, ScrollView, StyleSheet, TouchableOpacity, View } from "react-native";
-import MapView, { Marker } from "react-native-maps";
+import MapView, { Marker, PROVIDER_GOOGLE } from "react-native-maps";
 import { ActivityIndicator, Card, DefaultTheme, Text } from "react-native-paper";
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { db } from "../../../firebase";
@@ -72,6 +72,7 @@ function VisitData({ route }) {
                         </View>
                         <MapView
                             style={{ width: '100%', height: 150, marginTop: 10 }}
+                            provider={PROVIDER_GOOGLE}
                             initialRegion={{
                                 latitude: parseFloat(visitData.locationData.latitude),
                                 longitude: parseFloat(visitData.locationData.longitude),

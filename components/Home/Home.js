@@ -3,7 +3,7 @@ import { getAuth, onAuthStateChanged } from 'firebase/auth'
 import { collection, doc, getDoc, onSnapshot } from 'firebase/firestore'
 import { maskBr } from 'js-brasil'
 import React, { useEffect, useState } from 'react'
-import { StyleSheet, TouchableOpacity, View } from 'react-native'
+import { Alert, StyleSheet, TouchableOpacity, View } from 'react-native'
 import { ActivityIndicator, Card, DefaultTheme, Text } from 'react-native-paper'
 import { db } from '../../firebase'
 
@@ -26,31 +26,37 @@ function Home() {
     const [visits, setVisits] = useState([])
     const [loading, setLoading] = useState(true)
     const [userLoading, setUserLoading] = useState(true)
+    const [user, setUser] = useState(null)
     const navigation = useNavigation();
 
     useEffect(() => {
         const auth = getAuth()
         onAuthStateChanged(auth, (user) => {
             if (user) {
+                console.log('User: ', user)
+                setUser(user)
                 getDoc(doc(db, "users", user.uid)).then((document) => {
-                    if (document.exists())
+                    if (document.exists()) {
                         Alert.alert('Você entrou com o usuário ' + document.data().name, 'E-mail: ' + document.data().email);
+                        setUser({
+                            ...user,
+                            ...document.data()
+                        })
+                    }
+                })
+                setLoading(true)
+                onSnapshot(collection(db, 'visits'), (querySnapshot) => {
+                    const data = querySnapshot.docs.map((doc) => ({
+                        id: doc.id,
+                        ...doc.data(),
+                    })).filter((visit) => visit.user === user.uid)
+                    setVisits(data)
+                    setLoading(false)
                 })
             }
             else navigation.navigate('Login')
             setUserLoading(false)
         })
-        setLoading(true)
-        const unsubscribe = onSnapshot(collection(db, 'visits'), (querySnapshot) => {
-            const data = querySnapshot.docs.map((doc) => ({
-                id: doc.id,
-                ...doc.data(),
-            }))
-            setVisits(data)
-            setLoading(false)
-        })
-
-        return () => unsubscribe()
     }, [])
 
     return (

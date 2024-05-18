@@ -1,7 +1,7 @@
 import { useNavigation } from "@react-navigation/native"
-import { getAuth, signInWithEmailAndPassword } from "firebase/auth"
+import { getAuth, onAuthStateChanged, signInWithEmailAndPassword } from "firebase/auth"
 import { doc, getDoc } from "firebase/firestore"
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Alert, Image, ScrollView, StyleSheet, View } from "react-native"
 import { Button, Text, TextInput } from "react-native-paper"
 import { db } from "../../firebase"
@@ -76,10 +76,22 @@ function Login() {
         setPassword('')
     }
 
+    useEffect(() => {
+        const auth = getAuth()
+        onAuthStateChanged(auth, (user) => {
+            if (user) {
+                getDoc(doc(db, "users", user.uid)).then((document) => {
+                    if (document.exists()) navigation.navigate('Visitas')
+                    else Alert.alert('Oops!', 'Algo está errado, por favor, tente novamente ou entre em contato com o desenvolvedor')
+                })
+            }
+            else navigation.navigate('Login')
+        })
+    })
+
     return (
         <ScrollView contentContainerStyle={styles.container}>
             <View style={styles.container}>
-
                 <View style={{ marginBottom: 80 }}>
                     <Image source={require('../../assets/icon.png')} style={{ width: 90, height: 90, display: 'block', margin: 'auto' }} />
                 </View>

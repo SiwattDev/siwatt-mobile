@@ -82,7 +82,10 @@ function NewVisit() {
                 getDoc(doc(db, "users", user.uid)).then((document) => {
                     if (document.exists()) {
                         Alert.alert('Você entrou com o usuário ' + document.data().name, 'E-mail: ' + document.data().email);
-                        setUser(document.data())
+                        setUser({
+                            ...user,
+                            ...document.data()
+                        })
                     }
                 })
             }
