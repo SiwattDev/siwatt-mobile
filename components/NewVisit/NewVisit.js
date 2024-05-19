@@ -89,7 +89,7 @@ function NewVisit() {
                     }
                 })
             }
-            else navigation.navigate('Login')
+            else Alert.alert('Nenhum usuário conectado ', 'Volte a página de Início para fazer login ou feche o CRM Siwatt e abra novamente.')
             setUserLoading(false)
         })
     }, [])

@@ -21,6 +21,26 @@ const theme = {
     },
 }
 
+const MyImage = ({ source, style }) => {
+    const [aspectRatio, setAspectRatio] = useState(1);
+
+    useEffect(() => {
+        Image.getSize(source.uri, (width, height) => {
+            setAspectRatio(width / height);
+        });
+    }, [source]);
+
+    return (
+        <Image
+            source={source}
+            style={{ ...style, aspectRatio }}
+            resizeMode="contain"
+        />
+    );
+};
+
+
+
 function VisitData({ route }) {
     const [loading, setLoading] = useState(true)
     const [visitData, setVisitData] = useState()
@@ -135,12 +155,18 @@ function VisitData({ route }) {
                         <View style={{ display: 'flex', flexDirection: 'row', gap: 8, alignItems: 'center' }}>
                             <Icon name='image' size={20} /><Text selectable variant="titleMedium">Imagens da Visita</Text>
                         </View>
-                        {visitData.visitImages && visitData.visitImages.map((image, index) => (
-                            <View style={{ position: 'relative' }} key={index}>
-                                <Image source={{ uri: image }} style={{ width: '100%', height: undefined, aspectRatio: 1, marginTop: 10, borderRadius: 10 }} />
-                                <TouchableOpacity onPress={() => Linking.openURL(bill.energyBill)} style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }} />
-                            </View>
-                        ))}
+                        {visitData.visitImages && visitData.visitImages.map((image, index) => {
+                            console.log(image)
+                            return (
+                                <View style={{ position: 'relative' }} key={index}>
+                                    <MyImage
+                                        source={{ uri: image }}
+                                        style={{ width: '100%', marginTop: 10, borderRadius: 10 }}
+                                    />
+                                    <TouchableOpacity onPress={() => Linking.openURL(`${image}`)} style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }} />
+                                </View>
+                            )
+                        })}
                         {!visitData.visitImages && <Text selectable variant="bodyMedium" style={{ textAlign: 'center' }}>Nenhuma imagem encontrada</Text>}
                     </Card.Content>
                 </Card>
@@ -152,15 +178,22 @@ function VisitData({ route }) {
                             </View>
                             {visitData.energyBills && visitData.energyBills.map((bill, index) => (
                                 <Card key={index} style={{ backgroundColor: '#ffffff', marginBottom: 10 }}>
+                                    {console.log(bill)}
                                     <Card.Content>
                                         <Text selectable variant="bodyMedium" style={{ fontWeight: 'bold' }}>Conta {index + 1}</Text>
                                         <View style={{ position: 'relative' }}>
-                                            <Image source={{ uri: bill.energyBill }} style={{ width: '100%', height: undefined, aspectRatio: 1, marginTop: 10, borderRadius: 10 }} />
+                                            <MyImage
+                                                source={{ uri: bill.energyBill }}
+                                                style={{ width: '100%', marginTop: 10, borderRadius: 10 }}
+                                            />
                                             <TouchableOpacity onPress={() => Linking.openURL(bill.energyBill)} style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }} />
                                         </View>
                                         <View style={{ position: 'relative' }}>
-                                            <Image source={{ uri: bill.energyBillGraph }} style={{ width: '100%', height: undefined, aspectRatio: 1, marginTop: 10, borderRadius: 10 }} />
-                                            <TouchableOpacity onPress={() => Linking.openURL(bill.energyBillChart)} style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }} />
+                                            <MyImage
+                                                source={{ uri: bill.energyBillGraph }}
+                                                style={{ width: '100%', marginTop: 10, borderRadius: 10 }}
+                                            />
+                                            <TouchableOpacity onPress={() => Linking.openURL(bill.energyBillGraph)} style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }} />
                                         </View>
                                     </Card.Content>
                                 </Card>
