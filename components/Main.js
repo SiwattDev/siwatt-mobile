@@ -43,8 +43,7 @@ function Main() {
             <View>
                 <Appbar.Header style={{ backgroundColor: '#FFF', borderBottomWidth: 1, borderColor: '#00000020' }} mode='center-aligned'>
                     <Image source={require('../assets/icon.png')} style={{ width: 40, height: 40, marginStart: 10 }} />
-                    <Appbar.Content title='CRM - Visita' color='#000' />
-                    {/* <Button mode='contained' buttonColor={theme.colors.secondary} textColor='#000' style={{ marginEnd: 10, width: 41, padding: 0, paddingLeft: 13, minWidth: 0, borderRadius: 50 }} icon='account-minus' onPress={() => console.log('Pressed')}></Button> */}
+                    <Appbar.Content title='SIWATT - Visita' color='#000' />
                     <Appbar.Action icon="logout" mode='contained' style={{ marginEnd: 10, backgroundColor: theme.colors.secondary }} onPress={logout} />
                 </Appbar.Header>
             </View>
