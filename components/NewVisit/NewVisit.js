@@ -7,7 +7,8 @@ import { addDoc, collection, doc, getDoc, setDoc } from 'firebase/firestore'
 import { getDownloadURL, ref, uploadBytes } from 'firebase/storage'
 import { maskBr, validateBr } from 'js-brasil'
 import React, { useEffect, useState } from 'react'
-import { Alert, Image, ScrollView, StyleSheet, View } from 'react-native'
+import { Alert, Image, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native'
+import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps'
 import { ActivityIndicator, Button, Card, DefaultTheme, RadioButton, Text, TextInput } from 'react-native-paper'
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons'
 import { db, storage } from '../../firebase'
@@ -23,7 +24,7 @@ const theme = {
         info: '#2196f3',
         success: '#4caf50',
         black: '#000000',
-        soft: '#2485f780'
+        soft: '#2485f780',
     },
 }
 
@@ -81,7 +82,6 @@ function NewVisit() {
             if (user) {
                 getDoc(doc(db, "users", user.uid)).then((document) => {
                     if (document.exists()) {
-                        Alert.alert('Você entrou com o usuário ' + document.data().name, 'E-mail: ' + document.data().email);
                         setUser({
                             ...user,
                             ...document.data()
@@ -237,67 +237,41 @@ function NewVisit() {
     }
 
     const saveVisit = async () => {
+        if (!user) {
+            Alert.alert('Erro', 'Nenhum usuário autenticado. Por favor, autentique-se e tente novamente.')
+            throw new Error('Nenhum usuário autenticado')
+        }
         if (!location) {
-            Alert.alert('Dados faltando', 'Desculpe, algum problema ocorreu obtendo o endereço. Você pode: \n1. Verificar se o GPS está ligado. \n2. Verificar a conexão com a Internet. \n3. Tentar novamente mais tarde.')
+            Alert.alert('Dados faltando', 'Desculpe, algum problema ocorreu obtendo o endereço. Você pode: \n1. Verificar se o GPS está ligado. \n2. Verificar a conexão com a Internet. \n3. Fechar e abrir novamente o app e tentar novamente')
             return
         }
-        if (!clientData.cpf && typeEntity === 'individuals') {
-            Alert.alert('Campos não preenchidos', 'Por favor, preencha o CPF.')
-            return
-        }
-        if (!clientData.cnpj && typeEntity === 'legal-entity') {
-            Alert.alert('Campos não preenchidos', 'Por favor, preencha o CNPJ.')
+        if (!clientData.cnpj || !clientData.cpf) {
+            Alert.alert('Dados faltando', 'Por favor, preencha o CPF ou o CNPJ do cliente')
             return
         }
         if (!clientData.name) {
-            Alert.alert('Campos não preenchidos', 'Por favor, preencha a Razão Social.')
+            Alert.alert('Dados faltando', 'Por favor, preencha o nome do cliente')
             return
         }
-        if (typeEntity === 'legal-entity' && !clientData.fantasyName) {
-            Alert.alert('Campos não preenchidos', 'Por favor, preencha o Nome Fantasia.')
+        if (!clientData.fantasyName) {
+            Alert.alert('Dados faltando', 'Por favor, preencha o nome fantasia do cliente')
             return
         }
         if (!clientData.phone) {
-            Alert.alert('Campos não preenchidos', 'Por favor, preencha o Telefone.')
+            Alert.alert('Dados faltando', 'Por favor, preencha o telefone do cliente')
             return
         }
-        if (selectedImages.length < 2) {
-            Alert.alert('Campos não preenchidos', 'Selecione pelo menos duas imagens da visita.')
+        if (!comment) {
+            Alert.alert('Dados faltando', 'Por favor, preencha o campo de observação')
             return
         }
         if (haveEnergyBills && energyBills.length === 0) {
-            Alert.alert('Campos não preenchidos', 'Adicione pelo menos uma conta de energia.')
-            return
-        }
-        if (comment.length < 50) {
-            Alert.alert('Campos não preenchidos', 'O comentário deve ter no mínimo 50 caracteres.')
+            Alert.alert('Dados faltando', 'Por favor, adicione pelo menos uma conta de energia')
             return
         }
 
         setLoading(true)
-        const saveImage = async (image) => {
-            const imageUri = image.uri
-            const response = await fetch(imageUri)
-            const blob = await response.blob()
-            const timeHash = Date.now()
-
-            const storageRef = ref(storage, `visits/${timeHash}_${image.name}`)
-
-            try {
-                await uploadBytes(storageRef, blob)
-                const imageUrl = await getDownloadURL(storageRef)
-                return imageUrl
-            } catch (error) {
-                console.error('Erro ao salvar imagem:', error)
-                throw new Error('Erro ao salvar imagem')
-            }
-        }
-
         try {
-            if (!user) {
-                Alert.alert('Erro', 'Nenhum usuário autenticado. Por favor, autentique-se e tente novamente.')
-                throw new Error('Nenhum usuário autenticado')
-            }
             const imageUrls = await Promise.all(selectedImages.map(saveImage))
             const id = generateCode()
 
@@ -311,299 +285,438 @@ function NewVisit() {
                 user: user.uid,
             }
 
+            if (typeEntity === 'legal-entity')
+                delete data.clientData.cpf
+            else delete data.clientData.cnpj
+
             if (haveEnergyBills) {
                 const energyBillsData = await Promise.all(energyBills.map(async (bill) => {
                     const imageUrls = {
                         energyBill: await saveImage(bill.energyBill),
                         energyBillGraph: await saveImage(bill.energyBillGraph),
                     }
-                    console.log(imageUrls)
                     return imageUrls
                 }))
-                console.log(energyBillsData)
                 data['energyBills'] = energyBillsData
             }
-            console.log(data)
+
             await createDocument('visits', id, data)
             setLoading(false)
             Alert.alert('Muito bom!', 'Visita salva com sucesso!')
         } catch (error) {
             console.error('Erro ao salvar visita:', error)
             Alert.alert('Oops!', 'Algo deu errado. Por favor, tente novamente mais tarde.')
+        } finally {
+            setLoading(false)
         }
     }
 
-    if (userLoading) {
-        return (
-            <View style={{ ...styles.container, display: loading ? 'none' : 'flex' }}>
-                <ActivityIndicator size="large" color={theme.colors.primary} />
-            </View>
-        )
+    const saveImage = async (image) => {
+        const imageUri = image.uri
+        const response = await fetch(imageUri)
+        const blob = await response.blob()
+        const timeHash = Date.now()
+
+        const storageRef = ref(storage, `visits/${timeHash}_${image.name}`)
+
+        try {
+            await uploadBytes(storageRef, blob)
+            const imageUrl = await getDownloadURL(storageRef)
+            return imageUrl
+        } catch (error) {
+            console.error('Erro ao salvar imagem:', error)
+            throw new Error('Erro ao salvar imagem')
+        }
     }
 
-    return (
-        <ScrollView contentContainerStyle={{ flexGrow: 1 }}>
-            <View style={{ ...styles.container, display: loading ? 'none' : 'flex' }}>
-                <Text selectable variant="titleLarge">Sua localização</Text>
-                <Card style={{ marginTop: 10, backgroundColor: '#ffffff' }}>
-                    <Card.Content style={{ flexDirection: 'row', gap: 10, justifyContent: 'space-between' }}>
-                        <View>
-                            <Text selectable variant="titleMedium">{address ? address : 'Carregando...'}</Text>
-                            <Text selectable variant="bodyMedium">{cityState ? cityState : 'Carregando...'}</Text>
-                        </View>
-                        <View>
-                            <Text selectable>
-                                <Icon name="map-marker-radius" size={40} color={theme.colors.primary} />
-                            </Text>
-                        </View>
-                    </Card.Content>
-                </Card>
-                <View style={{ display: 'flex', flexDirection: 'row', gap: 0, width: '100%' }}>
-                    <Card style={{ marginTop: 10, backgroundColor: '#ffffff', width: '50%', borderRadius: 0, borderTopStartRadius: 10, borderBottomStartRadius: 10 }}>
-                        <Card.Content style={{ flexDirection: 'row', gap: 10, alignItems: 'center' }}>
-                            <View>
-                                <Text selectable>
-                                    <Icon name="calendar" size={30} color={theme.colors.primary} />
-                                </Text>
-                            </View>
-                            <View>
-                                <Text selectable style={{ textAlign: 'center' }} variant="bodyMedium">{date ? getDayOfWeek(date) : 'Carregando...'}</Text>
-                                <Text selectable style={{ textAlign: 'center' }} variant="bodyMedium">{date ? date.toLocaleDateString('pt-BR') : 'Carregando...'}</Text>
-                            </View>
-                        </Card.Content>
-                    </Card>
-                    <Card style={{ marginTop: 10, backgroundColor: '#ffffff', width: '50%', borderRadius: 0, borderTopEndRadius: 10, borderBottomEndRadius: 10 }}>
-                        <Card.Content style={{ flexDirection: 'row', gap: 10, alignItems: 'center' }}>
-                            <View>
-                                <Text selectable>
-                                    <Icon name="clock-outline" size={30} color={theme.colors.primary} />
-                                </Text>
-                            </View>
-                            <View>
-                                <Text selectable style={{ textAlign: 'center' }} variant="bodyMedium">{date ? `${getPeriodOfDay(date)}` : 'Carregando...'}</Text>
-                                <Text selectable style={{ textAlign: 'center' }} variant="bodyMedium">{date ? `${date.toLocaleTimeString()}` : 'Carregando...'}</Text>
-                            </View>
-                        </Card.Content>
-                    </Card>
-                </View>
-                <Card style={{ marginTop: 10, backgroundColor: '#ffffff' }}>
-                    <Card.Content>
-                        <RadioButton.Group onValueChange={(newValue) => {
-                            setTypeEntity(newValue)
-                            setClientData({})
-                        }} value={typeEntity}>
-                            <View style={{ marginTop: 10, display: 'flex', flexDirection: 'row', justifyContent: 'space-between', paddingStart: 10, paddingEnd: 10 }}>
-                                <View style={{ display: 'flex', flexDirection: 'row', gap: 0, alignItems: 'center' }}>
-                                    <Text selectable>Pessoa Física</Text>
-                                    <RadioButton value="individuals" />
-                                </View>
-                                <View style={{ display: 'flex', flexDirection: 'row', gap: 0, alignItems: 'center' }}>
-                                    <Text selectable>Pessoa Jurídica</Text>
-                                    <RadioButton value="legal-entity" />
-                                </View>
-                            </View>
-                        </RadioButton.Group>
-                        {typeEntity === 'individuals' && (
-                            <TextInput
-                                label='CPF'
-                                mode='outlined'
-                                style={{ backgroundColor: '#ffffff', marginTop: 10 }}
-                                value={clientData.cpf}
-                                onChangeText={(text) => {
-                                    setClientData((prevData) => ({
-                                        ...prevData,
-                                        cpf: text,
-                                    }))
+    return userLoading ? <ActivityIndicator /> : (
+        <ScrollView contentContainerStyle={styles.container}>
+            <Card style={styles.card}>
+                <Card.Title
+                    title={user ? 'Olá, ' + user.name + '.' : 'Olá.'}
+                    subtitle={date.toLocaleTimeString('pt-BR') + ', ' + getDayOfWeek(date) + ', ' + date.toLocaleDateString('pt-BR') + '.'}
+                    left={(props) => (
+                        <Icon
+                            {...props}
+                            name="hand-wave"
+                            style={{ transform: [{ scaleX: -1 }, { translateX: 10 }] }}
+                            size={30}
+                            color={theme.colors.primary}
+                        />
+                    )}
+                />
+                <Card.Content>
+                    <Text variant="titleMedium">Sua localização</Text>
+                    {!location && <ActivityIndicator />}
+                    {location && (
+                        <>
+                            <Text variant="bodyMedium">{address}</Text>
+                            <Text variant="bodyMedium">{cityState}</Text>
+                            <MapView
+                                style={{ width: '100%', height: 150, marginTop: 10 }}
+                                provider={PROVIDER_GOOGLE}
+                                initialRegion={{
+                                    latitude: parseFloat(location.latitude),
+                                    longitude: parseFloat(location.longitude),
+                                    latitudeDelta: 0.001,
+                                    longitudeDelta: 0.001,
                                 }}
-                            />
-                        )}
-                        {typeEntity === 'legal-entity' && (
+                            >
+                                <Marker
+                                    coordinate={{
+                                        latitude: parseFloat(location.latitude),
+                                        longitude: parseFloat(location.longitude),
+                                    }}
+                                    title="Local da Visita"
+                                    description={`Ponto identificado do local da visita.`}
+                                />
+                            </MapView>
+                        </>
+                    )}
+                </Card.Content>
+            </Card>
+            <Card style={styles.card}>
+                <Card.Title
+                    title="Dados do Cliente"
+                    subtitle="Informe os dados do cliente"
+                    left={(props) => (
+                        <Icon
+                            {...props}
+                            name="badge-account-horizontal"
+                            size={30}
+                            color={theme.colors.primary}
+                        />
+                    )}
+                />
+                <Card.Content>
+                    <Text variant="titleLarge">Dados do Cliente</Text>
+                    <View style={{ ...styles.row, marginBottom: 15 }}>
+                        <View style={styles.rowItem}>
+                            <RadioButton.Group
+                                onValueChange={value => setTypeEntity(value)}
+                                value={typeEntity}
+                            >
+                                <RadioButton.Item
+                                    label="Pessoa Física"
+                                    value="individual"
+                                />
+                                <RadioButton.Item
+                                    label="Pessoa Jurídica"
+                                    value="legal-entity"
+                                />
+                            </RadioButton.Group>
+                        </View>
+                    </View>
+                    <View style={{ ...styles.row, marginBottom: 15 }}>
+                        <View style={styles.rowItem}>
                             <TextInput
-                                label='CNPJ'
-                                mode='outlined'
-                                style={{ backgroundColor: '#ffffff', marginTop: 10 }}
-                                value={clientData.cnpj}
-                                onChangeText={(text) => {
+                                style={styles.input}
+                                label={typeEntity === 'legal-entity' ? 'CNPJ' : 'CPF'}
+                                value={clientData?.cnpj || clientData?.cpf || ''}
+                                onChangeText={text => {
                                     let value = text
-                                    if (validateBr.cnpj(text)) value = maskBr.cnpj(text)
-                                    setClientData((prevData) => ({
+                                    if (validateBr.cnpj(value) || validateBr.cpf(value))
+                                        value = typeEntity === 'legal-entity' ? maskBr.cnpj(text) : maskBr.cpf(text)
+                                    setClientData(prevData => ({
                                         ...prevData,
-                                        cnpj: value,
+                                        cnpj: typeEntity === 'legal-entity' ? value : undefined,
+                                        cpf: typeEntity !== 'legal-entity' ? value : undefined
                                     }))
                                 }}
-                            />
-                        )}
-                        <TextInput
-                            label='Razão Social'
-                            mode='outlined'
-                            style={{ backgroundColor: '#ffffff', marginTop: 10 }}
-                            value={clientData.name}
-                            onChangeText={(text) => {
-                                setClientData((prevData) => ({
-                                    ...prevData,
-                                    name: text,
-                                }))
-                            }}
-                        />
-                        {typeEntity === 'legal-entity' && (
-                            <TextInput
-                                label='Nome Fantasia'
-                                mode='outlined'
-                                style={{ backgroundColor: '#ffffff', marginTop: 10 }}
-                                value={clientData.fantasyName}
-                                onChangeText={(text) => {
-                                    setClientData((prevData) => ({
-                                        ...prevData,
-                                        fantasyName: text,
-                                    }))
-                                }}
-                            />
-                        )}
-                        <TextInput
-                            label='Telefone'
-                            mode='outlined'
-                            style={{ backgroundColor: '#ffffff', marginTop: 10 }}
-                            value={clientData.phone}
-                            onChangeText={(text) => {
-                                let value = text
-                                if (validateBr.celular(value)) value = maskBr.celular(value)
-                                setClientData((prevData) => ({
-                                    ...prevData,
-                                    phone: value,
-                                }))
-                            }}
-                        />
-                    </Card.Content>
-                </Card>
-                <Card style={{ marginTop: 10, backgroundColor: '#ffffff' }}>
-                    <Card.Content>
-                        <Text selectable variant='titleMedium'>Imagens da Visita</Text>
-                        <Button mode='contained' buttonColor={theme.colors.secondary} textColor='#000' style={{ marginTop: 10 }} icon='image' onPress={() => pickDocument(true, (urls) => setSelectedImages(urls))}> Carregar imagens</Button>
-                        <Card style={{ marginTop: 10, backgroundColor: '#ffffff' }}>
-                            <Card.Content>
-                                <Text selectable variant='titleMedium'>Imagens Selecionadas</Text>
-                                {selectedImages.length > 0 ? (
-                                    <Card style={{ marginTop: 10, backgroundColor: '#ffffff' }}>
-                                        <Card.Content style={{ flexDirection: 'row', gap: 10, justifyContent: 'center', alignItems: 'center', flexWrap: 'wrap' }}>
-                                            {selectedImages.map((image, index) => <Image source={{ uri: `data:image/png;base64,${image.base64}` }} style={{ width: 80, height: 80, borderRadius: 5 }} key={index} />)}
-                                        </Card.Content>
-                                    </Card>
-                                ) : <Text selectable variant='bodyMedium' style={{ marginTop: 10, marginBottom: 10, textAlign: 'center' }}>Nenhuma imagem selecionada</Text>
+                                keyboardType="numeric"
+                                mode="outlined"
+                                error={
+                                    (typeEntity === 'legal-entity' && clientData?.cnpj && !validateBr.cnpj(clientData?.cnpj)) ||
+                                    (typeEntity === 'individual' && clientData?.cpf && !validateBr.cpf(clientData?.cpf))
                                 }
-                            </Card.Content>
-                        </Card>
-                    </Card.Content>
-                </Card>
-                <Card style={{ marginTop: 10, backgroundColor: '#ffffff' }}>
-                    <Card.Content>
-                        <Text selectable variant='titleMedium' style={{ textAlign: 'center' }}>Você tem alguma conta de energia do cliente disponível?</Text>
-                        <RadioButton.Group onValueChange={(newValue) => setHaveEnergyBills(newValue)} value={haveEnergyBills}>
-                            <View style={{ marginTop: 10, display: 'flex', flexDirection: 'row', justifyContent: 'space-between', paddingStart: 50, paddingEnd: 50 }}>
-                                <View style={{ display: 'flex', flexDirection: 'row', gap: 0, alignItems: 'center' }}>
-                                    <Text selectable>Sim</Text>
-                                    <RadioButton value={true} />
-                                </View>
-                                <View style={{ display: 'flex', flexDirection: 'row', gap: 0, alignItems: 'center' }}>
-                                    <Text selectable>Não</Text>
-                                    <RadioButton value={false} />
+                            />
+                        </View>
+                    </View>
+                    <View style={{ ...styles.row, marginBottom: 15 }}>
+                        <View style={styles.rowItem}>
+                            <TextInput
+                                style={styles.input}
+                                label={typeEntity === 'legal-entity' ? 'Razão Social' : 'Nome'}
+                                value={clientData?.name || ''}
+                                onChangeText={text => setClientData(prevData => ({
+                                    ...prevData,
+                                    name: text
+                                }))}
+                                mode="outlined"
+                            />
+                        </View>
+                    </View>
+                    {typeEntity === 'legal-entity' && (
+                        <>
+                            <View style={{ ...styles.row, marginBottom: 15 }}>
+                                <View style={styles.rowItem}>
+                                    <TextInput
+                                        style={styles.input}
+                                        label="Nome Fantasia"
+                                        value={clientData?.fantasyName || ''}
+                                        onChangeText={text => setClientData(prevData => ({
+                                            ...prevData,
+                                            fantasyName: text
+                                        }))}
+                                        mode="outlined"
+                                    />
                                 </View>
                             </View>
-                        </RadioButton.Group>
-                        {haveEnergyBills && energyBills.length > 0 && (
-                            <View>
-                                <Text selectable variant='bodyMedium' style={{ marginTop: 10 }}>Contas de Energia adicionadas:</Text>
-                                {energyBills.map((bill, index) => (
-                                    <Card style={{ marginTop: 10, backgroundColor: '#ffffff' }} key={index}>
-                                        <Card.Content>
-                                            <View style={{ flexDirection: 'row', gap: 10, justifyContent: 'space-between', alignItems: 'center' }}>
-                                                <View style={{ flexDirection: 'row', gap: 10, justifyContent: 'center', alignItems: 'center' }}>
-                                                    <Card style={{ backgroundColor: '#fff' }}>
-                                                        <Card.Content style={{ flexDirection: 'column', gap: 5, justifyContent: 'center', alignItems: 'center' }}>
-                                                            <Text selectable style={{ fontSize: 10 }}>Foto da conta</Text>
-                                                            <Image source={{ uri: `data:image/png;base64,${bill.energyBill.base64}` }} style={{ width: 70, height: 70, borderRadius: 5 }} />
-                                                        </Card.Content>
-                                                    </Card>
-                                                    <Card style={{ backgroundColor: '#fff' }}>
-                                                        <Card.Content style={{ flexDirection: 'column', gap: 5, justifyContent: 'center', alignItems: 'center' }}>
-                                                            <Text selectable style={{ fontSize: 10 }}>Foto do gráfico</Text>
-                                                            <Image source={{ uri: `data:image/png;base64,${bill.energyBillGraph.base64}` }} style={{ width: 70, height: 70, borderRadius: 5 }} />
-                                                        </Card.Content>
-                                                    </Card>
-                                                </View>
-                                                <Button mode='contained' buttonColor={theme.colors.black} textColor='#fff' style={{ marginTop: 10, width: 41, padding: 0, paddingLeft: 15, minWidth: 0, borderRadius: 50 }} icon='delete' onPress={() => setEnergyBills(energyBills.filter((_, i) => i !== index))}></Button>
-                                            </View>
-                                        </Card.Content>
-                                    </Card>
-                                ))}
-                            </View>
-                        )}
-                        {haveEnergyBills && energyBills.length === 0 && (
-                            <Text selectable variant='bodyMedium' style={{ marginTop: 10, textAlign: 'center' }}>Nenhuma conta de energia adicionada</Text>
-                        )}
-                        {haveEnergyBills && showAddEnergyBills && (
-                            <Card style={{ marginTop: 10, backgroundColor: '#ffffff' }}>
-                                <Card.Content>
-                                    <Text selectable variant='titleMedium'>Selecione as imagens da conta de energia:</Text>
-                                    <Button mode='contained' buttonColor={theme.colors.black} textColor='#fff' style={{ marginTop: 10, borderRadius: 8 }} icon='file-document' onPress={() => pickDocument(false, url => setActiveEnergyBill({ ...activeEnergyBill, energyBill: url }))}> Foto da conta de energia</Button>
-                                    <Button mode='contained' buttonColor={theme.colors.black} textColor='#fff' style={{ marginTop: 10, borderRadius: 8 }} icon='chart-bar' onPress={() => pickDocument(false, url => setActiveEnergyBill({ ...activeEnergyBill, energyBillGraph: url }))}> Foto do gráfico de consumo</Button>
-                                    <Card style={{ marginTop: 10, backgroundColor: '#ffffff' }}>
-                                        <Card.Content style={{ flexDirection: 'row', gap: 10, justifyContent: 'center', alignItems: 'center' }}>
-                                            <View style={{ display: 'flex', flexDirection: 'column', gap: 0, alignItems: 'center', justifyContent: 'center', paddingLeft: 5, paddingRight: 5 }}>
-                                                <Text selectable style={{ marginBottom: 10 }}>Foto da conta:</Text>
-                                                {activeEnergyBill.energyBill ? <Image source={{ uri: `data:image/png;base64,${activeEnergyBill.energyBill.base64}` }} style={{ width: 110, height: 110, borderRadius: 5 }} /> : <Image source={{ uri: 'https://via.placeholder.com/110x110' }} style={{ width: 110, height: 110, borderRadius: 5 }} />}
-                                            </View>
-                                            <View style={{ display: 'flex', flexDirection: 'column', gap: 0, alignItems: 'center', justifyContent: 'center', paddingLeft: 5, paddingRight: 5 }}>
-                                                <Text selectable style={{ marginBottom: 10 }}>Foto do gráfico:</Text>
-                                                {activeEnergyBill.energyBillGraph ? <Image source={{ uri: `data:image/png;base64,${activeEnergyBill.energyBillGraph.base64}` }} style={{ width: 110, height: 110, borderRadius: 5 }} /> : <Image source={{ uri: 'https://via.placeholder.com/110x110' }} style={{ width: 110, height: 110, borderRadius: 5 }} />}
-                                            </View>
-                                        </Card.Content>
-                                    </Card>
-                                    <View style={{ marginTop: 10, display: 'flex', flexDirection: 'row', gap: 0, alignItems: 'center', justifyContent: 'center', gap: 20 }}>
-                                        <Button mode='contained' buttonColor={theme.colors.black} textColor='#fff' style={{ marginTop: 10, width: 42, padding: 0, paddingLeft: 15, minWidth: 0, borderRadius: 50 }} icon='plus' onPress={() => {
-                                            if (activeEnergyBill.energyBill && activeEnergyBill.energyBillGraph) {
-
+                        </>
+                    )}
+                    <View style={{ ...styles.row, marginBottom: 15 }}>
+                        <View style={styles.rowItem}>
+                            <TextInput
+                                style={styles.input}
+                                label="Telefone"
+                                value={clientData?.phone || ''}
+                                onChangeText={text => {
+                                    let value = text
+                                    if (validateBr.telefone(value)) value = maskBr.telefone(text)
+                                    setClientData(prevData => ({
+                                        ...prevData,
+                                        phone: value
+                                    }))
+                                }}
+                                keyboardType="numeric"
+                                error={clientData?.phone && !validateBr.telefone(clientData?.phone)}
+                                mode="outlined"
+                            />
+                        </View>
+                    </View>
+                </Card.Content>
+            </Card>
+            <Card style={styles.card}>
+                <Card.Title
+                    title="Imagens"
+                    subtitle="Adicione fotos da visita"
+                    left={(props) => (
+                        <Icon
+                            {...props}
+                            name="camera"
+                            size={30}
+                            color={theme.colors.primary}
+                        />
+                    )}
+                />
+                <Card.Content>
+                    <Button
+                        icon="plus"
+                        mode="outlined"
+                        onPress={() => pickDocument(true, setSelectedImages)}
+                        style={styles.button}
+                    >
+                        Adicionar Imagens
+                    </Button>
+                    <ScrollView horizontal>
+                        {selectedImages.map((image, index) => (
+                            <Image
+                                key={index}
+                                source={{ uri: `data:image/png;base64,${image.base64}` }}
+                                style={styles.image}
+                            />
+                        ))}
+                    </ScrollView>
+                </Card.Content>
+            </Card>
+            <Card style={styles.card}>
+                <Card.Title
+                    title="Observações"
+                    subtitle="Adicione comentários sobre a visita"
+                    left={(props) => (
+                        <Icon
+                            {...props}
+                            name="comment-text"
+                            size={30}
+                            color={theme.colors.primary}
+                        />
+                    )}
+                />
+                <Card.Content>
+                    <TextInput
+                        placeholder='Adicione um comentário, história, expectativas...'
+                        value={comment}
+                        onChangeText={setComment}
+                        mode="outlined"
+                        multiline
+                        style={styles.textArea}
+                    />
+                </Card.Content>
+            </Card>
+            <Card style={styles.card}>
+                <Card.Title
+                    title="Contas de Energia"
+                    subtitle="Deseja adicionar contas de energia?"
+                    left={(props) => (
+                        <Icon
+                            {...props}
+                            name="file-document"
+                            size={30}
+                            color={theme.colors.primary}
+                        />
+                    )}
+                />
+                <Card.Content>
+                    <RadioButton.Group
+                        onValueChange={(value) => setHaveEnergyBills(value === 'yes')}
+                        value={haveEnergyBills ? 'yes' : 'no'}
+                    >
+                        <RadioButton.Item label="Sim" value="yes" />
+                        <RadioButton.Item label="Não" value="no" />
+                    </RadioButton.Group>
+                    {haveEnergyBills && (
+                        <>
+                            {energyBills.length > 0 && (
+                                <>
+                                    {
+                                        energyBills.map((bill, index) => (
+                                            <Card key={index} style={styles.card}>
+                                                <Card.Title
+                                                    title={`Conta de Energia ${index + 1}`}
+                                                    left={(props) => (
+                                                        <Icon
+                                                            {...props}
+                                                            name="file-document"
+                                                            size={30}
+                                                            color={theme.colors.primary}
+                                                        />
+                                                    )}
+                                                />
+                                                <Card.Content style={styles.cardContent}>
+                                                    <Image source={{ uri: `data:image/png;base64,${bill.energyBill.base64}` }} style={styles.image} />
+                                                    <Image source={{ uri: `data:image/png;base64,${bill.energyBillGraph.base64}` }} style={styles.image} />
+                                                </Card.Content>
+                                            </Card>
+                                        ))
+                                    }
+                                </>
+                            )}
+                            {showAddEnergyBills && <Card style={styles.card}>
+                                <Card.Title title="Adicionar Conta de Energia" />
+                                <Card.Content style={styles.cardContent}>
+                                    <Button
+                                        icon="plus"
+                                        mode="outlined"
+                                        onPress={() => pickDocument(false, (doc) => setActiveEnergyBill(prev => ({ ...prev, energyBill: doc })))}
+                                        style={styles.button}
+                                    >
+                                        Conta de Energia
+                                    </Button>
+                                    {activeEnergyBill.energyBill && (
+                                        <Image
+                                            source={{ uri: `data:image/png;base64,${activeEnergyBill.energyBill.base64}` }}
+                                            style={styles.image}
+                                        />
+                                    )}
+                                    <Button
+                                        icon="plus"
+                                        mode="outlined"
+                                        onPress={() => pickDocument(false, (doc) => setActiveEnergyBill(prev => ({ ...prev, energyBillGraph: doc })))}
+                                        style={styles.button}
+                                    >
+                                        Gráfico de Consumo
+                                    </Button>
+                                    {activeEnergyBill.energyBillGraph && (
+                                        <Image
+                                            source={{ uri: `data:image/png;base64,${activeEnergyBill.energyBillGraph.base64}` }}
+                                            style={styles.image}
+                                        />
+                                    )}
+                                    <View style={{ ...styles.row, justifyContent: 'space-between', width: '100%' }}>
+                                        <TouchableOpacity
+                                            onPress={() => {
                                                 setShowAddEnergyBills(false)
-                                                setEnergyBills([...energyBills, activeEnergyBill])
+                                                setEnergyBills(prev => [...prev, activeEnergyBill])
                                                 setActiveEnergyBill({})
-                                            } else {
-                                                Alert.alert('Erro', 'Selecione as imagens da conta de energia!')
-                                            }
-                                        }}></Button>
-                                        <Button mode='contained' buttonColor={theme.colors.black} textColor='#fff' style={{ marginTop: 10, width: 42, padding: 0, paddingLeft: 15, minWidth: 0, borderRadius: 50 }} icon='close' onPress={() => setShowAddEnergyBills(false)}></Button>
+                                            }}
+                                            style={styles.customButton}
+                                        >
+                                            <Text><Icon name='check' /> Salvar</Text>
+                                        </TouchableOpacity>
+                                        <TouchableOpacity
+                                            onPress={() => {
+                                                setShowAddEnergyBills(false)
+                                                setActiveEnergyBill({})
+                                            }}
+                                            style={styles.customButton}
+                                        >
+                                            <Text><Icon name='close' /> Cancelar</Text>
+                                        </TouchableOpacity>
                                     </View>
                                 </Card.Content>
-                            </Card>
-                        )}
-                        {haveEnergyBills && (
-                            <Button mode='contained' buttonColor={theme.colors.soft} textColor='#000' style={{ marginTop: 10, borderRadius: 8, width: 200, }} icon='file-plus' onPress={() => setShowAddEnergyBills(true)}> Adicionar uma conta</Button>
-                        )}
-                    </Card.Content>
-                </Card>
-                <Text selectable variant='titleMedium' style={{ marginTop: 10 }}>Comentário:</Text>
-                <TextInput
-                    multiline={true}
-                    numberOfLines={100}
-                    placeholder='Conte uma história da visita ao cliente...'
-                    mode='outlined'
-                    value={comment}
-                    onChangeText={text => setComment(text)}
-                    style={{ height: 200, textAlignVertical: 'top', backgroundColor: '#ffffff', marginTop: 10 }} />
-                <Button mode='contained' buttonColor={theme.colors.secondary} textColor='#000' style={{ marginTop: 10 }} icon='card-account-details' onPress={saveVisit}> Salvar Visita</Button>
-            </View>
-            {loading && (
-                <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, justifyContent: 'center', alignItems: 'center', zIndex: 9999, backgroundColor: '#f5f5f5' }}>
-                    <ActivityIndicator style={{ zIndex: 9999 }} />
-                    <Text selectable style={{ marginTop: 10, zIndex: 9999 }}>Salvando...</Text>
-                </View>
-            )}
+                            </Card>}
+                            <View style={{ display: 'flex', flexDirection: 'row', justifyContent: 'flex-start' }}>
+                                <TouchableOpacity
+                                    onPress={() => setShowAddEnergyBills(true)}
+                                    style={{ ...styles.customButton, backgroundColor: theme.colors.soft, borderRadius: 5 }}
+                                >
+                                    <Text><Icon name='plus' /> Adicionar</Text>
+                                </TouchableOpacity>
+                            </View>
+                        </>
+                    )}
+                </Card.Content>
+            </Card>
+            <Button
+                icon="content-save"
+                mode="contained"
+                onPress={saveVisit}
+                disabled={loading}
+                style={styles.button}
+            >
+                Salvar Visita
+            </Button>
         </ScrollView>
     )
 }
 
 const styles = StyleSheet.create({
     container: {
+        padding: 16,
+    },
+    card: {
+        marginVertical: 8,
+        paddingHorizontal: 10,
+        backgroundColor: '#fff',
+    },
+    row: {
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
+    rowItem: {
         flex: 1,
-        padding: 20,
+    },
+    input: {
+        backgroundColor: '#fff',
+    },
+    button: {
+        marginVertical: 8,
+        width: '100%',
+    },
+    customButton: {
+        paddingVertical: 10,
+        paddingHorizontal: 16,
+        marginVertical: 8,
+        backgroundColor: theme.colors.secondary,
+        borderRadius: 8
+    },
+    textArea: {
+        height: 150,
+        backgroundColor: '#fff',
+    },
+    cardContent: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+    },
+    image: {
+        width: 100,
+        height: 100,
+        margin: 8,
+        borderRadius: 8,
+    },
+    logo: {
+        width: 40,
+        height: 40,
     },
 })
 

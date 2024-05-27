@@ -3,7 +3,7 @@ import { getAuth, onAuthStateChanged } from 'firebase/auth'
 import { collection, doc, getDoc, onSnapshot } from 'firebase/firestore'
 import { maskBr } from 'js-brasil'
 import React, { useEffect, useState } from 'react'
-import { Alert, StyleSheet, TouchableOpacity, View } from 'react-native'
+import { Alert, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native'
 import { ActivityIndicator, Card, DefaultTheme, Text } from 'react-native-paper'
 import { db } from '../../firebase'
 
@@ -60,7 +60,7 @@ function Home() {
     }, [])
 
     return (
-        <View style={styles.container}>
+        <ScrollView contentContainerStyle={styles.container}>
             {visits.length > 0 && !loading && !userLoading && (
                 <>
                     {visits.map((visit) => (
@@ -86,13 +86,12 @@ function Home() {
                     <ActivityIndicator />
                 </View>
             )}
-        </View>
+        </ScrollView>
     )
 }
 
 const styles = StyleSheet.create({
     container: {
-        flex: 1,
         padding: 20,
     },
 })
