@@ -1,42 +1,40 @@
 {
-  "expo": {
-    "name": "CRM Siwatt",
-    "slug": "crm-siwatt",
-    "version": "1.0.0",
-    "orientation": "portrait",
-    "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
-    "splash": {
-      "image": "./assets/splash.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
-    },
-    "assetBundlePatterns": [
-      "**/*"
-    ],
-    "ios": {
-      "supportsTablet": true,
-      "bundleIdentifier": "com.crmsiwatt.crmsiwatt"
-    },
-    "android": {
-      "package": "com.crmsiwatt.crmsiwatt",
-      "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
-      },
-      "config": {
-        "googleMaps": {
-          "apiKey": "AIzaSyBMtGrRYXk8VwFKbCfbG5AcKHudyekTkZk"
+    "expo": {
+        "name": "CRM Siwatt",
+        "slug": "crm-siwatt",
+        "version": "1.0.0",
+        "orientation": "portrait",
+        "icon": "./assets/icon.png",
+        "userInterfaceStyle": "light",
+        "splash": {
+            "image": "./assets/splash.png",
+            "resizeMode": "contain",
+            "backgroundColor": "#ffffff"
+        },
+        "assetBundlePatterns": ["**/*"],
+        "ios": {
+            "supportsTablet": true,
+            "bundleIdentifier": "com.crmsiwatt.crmsiwatt"
+        },
+        "android": {
+            "package": "com.crmsiwatt.crmsiwatt",
+            "adaptiveIcon": {
+                "foregroundImage": "./assets/adaptive-icon.png",
+                "backgroundColor": "#ffffff"
+            },
+            "config": {
+                "googleMaps": {
+                    "apiKey": "AIzaSyBMtGrRYXk8VwFKbCfbG5AcKHudyekTkZk"
+                }
+            }
+        },
+        "web": {
+            "favicon": "./assets/favicon.png"
+        },
+        "extra": {
+            "eas": {
+                "projectId": "30f6fb9a-19ce-4194-9706-d712ab406ba4"
+            }
         }
-      }
-    },
-    "web": {
-      "favicon": "./assets/favicon.png"
-    },
-    "extra": {
-      "eas": {
-        "projectId": "30f6fb9a-19ce-4194-9706-d712ab406ba4"
-      }
     }
-  }
 }

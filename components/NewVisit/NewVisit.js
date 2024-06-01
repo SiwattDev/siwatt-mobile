@@ -506,7 +506,18 @@ function NewVisit() {
                 </Card.Content>
             </Card>
             <Card style={styles.card}>
-                <Card.Title title="Fotos" left={(props) => <Icon {...props} name="camera" size={40} />} />
+                <Card.Title
+                    title="Imagens da Visita"
+                    subtitle="Adicione imagens da visita (min: 2)"
+                    left={(props) => (
+                        <Icon
+                            {...props}
+                            name="camera"
+                            size={30}
+                            color={theme.colors.primary}
+                        />
+                    )}
+                />
                 <Card.Content>
                     <View style={styles.imagePickerContainer}>
                         {selectedImages.map((image, index) => (
