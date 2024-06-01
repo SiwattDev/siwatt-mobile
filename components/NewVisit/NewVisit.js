@@ -1,6 +1,5 @@
 import axios from 'axios'
-import * as DocumentPicker from 'expo-document-picker'
-import * as FileSystem from 'expo-file-system'
+import * as ImagePicker from 'expo-image-picker'
 import * as Location from 'expo-location'
 import { getAuth, onAuthStateChanged } from 'firebase/auth'
 import { addDoc, collection, doc, getDoc, setDoc } from 'firebase/firestore'
@@ -59,21 +58,41 @@ function NewVisit() {
         return daysOfWeek[date.getDay()]
     }
 
-    const pickDocument = async (multiple, callback = () => { }) => {
-        let result = await DocumentPicker.getDocumentAsync({
-            type: "image/*",
-            multiple,
+    const pickImageFromGallery = async (type) => {
+        const result = await ImagePicker.launchImageLibraryAsync({
+            mediaTypes: ImagePicker.MediaTypeOptions.Images,
+            allowsMultipleSelection: false,
+            base64: true,
         })
 
         if (!result.canceled && result.assets.length > 0) {
-            result.assets.forEach(async (asset) => {
-                let base64 = await FileSystem.readAsStringAsync(asset.uri, { encoding: FileSystem?.EncodingType?.Base64 })
-                asset.base64 = base64
-                console.log(result.assets)
-            })
-            console.log('Assets', result.assets, 'after')
-            callback(multiple ? result.assets : result.assets[0])
+            if (type === 'visit') {
+                setSelectedImages([...selectedImages, result.assets[0]]);
+            } else if (type === 'energyBill' || type === 'energyBillGraph') {
+                setActiveEnergyBill(prev => ({ ...prev, [type]: result.assets[0] }));
+            }
         }
+    }
+
+    const takePhoto = async (type) => {
+        const result = await ImagePicker.launchCameraAsync({
+            mediaTypes: ImagePicker.MediaTypeOptions.Images,
+            base64: true,
+        })
+
+        if (!result.canceled && result.assets.length > 0) {
+            if (type === 'visit') {
+                setSelectedImages([...selectedImages, result.assets[0]]);
+            } else if (type === 'energyBill' || type === 'energyBillGraph') {
+                setActiveEnergyBill(prev => ({ ...prev, [type]: result.assets[0] }));
+            }
+        }
+    }
+
+    const removeImage = (index) => {
+        const updatedImages = [...selectedImages]
+        updatedImages.splice(index, 1)
+        setSelectedImages(updatedImages)
     }
 
     useEffect(() => {
@@ -487,36 +506,24 @@ function NewVisit() {
                 </Card.Content>
             </Card>
             <Card style={styles.card}>
-                <Card.Title
-                    title="Imagens"
-                    subtitle="Adicione fotos da visita"
-                    left={(props) => (
-                        <Icon
-                            {...props}
-                            name="camera"
-                            size={30}
-                            color={theme.colors.primary}
-                        />
-                    )}
-                />
+                <Card.Title title="Fotos" left={(props) => <Icon {...props} name="camera" size={40} />} />
                 <Card.Content>
-                    <Button
-                        icon="plus"
-                        mode="outlined"
-                        onPress={() => pickDocument(true, setSelectedImages)}
-                        style={styles.button}
-                    >
-                        Adicionar Imagens
-                    </Button>
-                    <ScrollView horizontal>
+                    <View style={styles.imagePickerContainer}>
                         {selectedImages.map((image, index) => (
-                            <Image
-                                key={index}
-                                source={{ uri: `data:image/png;base64,${image.base64}` }}
-                                style={styles.image}
-                            />
+                            <View key={index} style={styles.imageContainer}>
+                                <Image source={{ uri: image.uri }} style={styles.image} />
+                                <TouchableOpacity onPress={() => removeImage(index)} style={styles.removeButton}>
+                                    <Icon name="close-circle" size={24} color="red" />
+                                </TouchableOpacity>
+                            </View>
                         ))}
-                    </ScrollView>
+                    </View>
+                    <Button mode="contained" onPress={pickImageFromGallery} style={styles.button}>
+                        Selecionar da Galeria
+                    </Button>
+                    <Button mode="contained" onPress={takePhoto} style={styles.button}>
+                        Tirar Foto
+                    </Button>
                 </Card.Content>
             </Card>
             <Card style={styles.card}>
@@ -597,7 +604,16 @@ function NewVisit() {
                                     <Button
                                         icon="plus"
                                         mode="outlined"
-                                        onPress={() => pickDocument(false, (doc) => setActiveEnergyBill(prev => ({ ...prev, energyBill: doc })))}
+                                        onPress={() => { // Quando clicar em "Conta de Energia"
+                                            Alert.alert(
+                                                "Adicionar Conta de Energia",
+                                                "Selecione a opção desejada",
+                                                [
+                                                    { text: "Selecionar da Galeria", onPress: () => pickImageFromGallery('energyBill') },
+                                                    { text: "Tirar Foto", onPress: () => takePhoto('energyBill') }
+                                                ]
+                                            );
+                                        }}
                                         style={styles.button}
                                     >
                                         Conta de Energia
@@ -611,7 +627,16 @@ function NewVisit() {
                                     <Button
                                         icon="plus"
                                         mode="outlined"
-                                        onPress={() => pickDocument(false, (doc) => setActiveEnergyBill(prev => ({ ...prev, energyBillGraph: doc })))}
+                                        onPress={() => { // Quando clicar em "Gráfico de Consumo"
+                                            Alert.alert(
+                                                "Adicionar Gráfico de Consumo",
+                                                "Selecione a opção desejada",
+                                                [
+                                                    { text: "Selecionar da Galeria", onPress: () => pickImageFromGallery('energyBillGraph') },
+                                                    { text: "Tirar Foto", onPress: () => takePhoto('energyBillGraph') }
+                                                ]
+                                            );
+                                        }}
                                         style={styles.button}
                                     >
                                         Gráfico de Consumo
@@ -678,6 +703,20 @@ const styles = StyleSheet.create({
         marginVertical: 8,
         paddingHorizontal: 10,
         backgroundColor: '#fff',
+    },
+    imagePickerContainer: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+    },
+    imageContainer: {
+        position: 'relative',
+        marginRight: 10,
+        marginBottom: 10,
+    },
+    removeButton: {
+        position: 'absolute',
+        top: 0,
+        right: 0,
     },
     row: {
         flexDirection: 'row',
