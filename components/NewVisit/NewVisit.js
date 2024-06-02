@@ -264,7 +264,7 @@ function NewVisit() {
             Alert.alert('Dados faltando', 'Desculpe, algum problema ocorreu obtendo o endereço. Você pode: \n1. Verificar se o GPS está ligado. \n2. Verificar a conexão com a Internet. \n3. Fechar e abrir novamente o app e tentar novamente')
             return
         }
-        if (!clientData.cnpj || !clientData.cpf) {
+        if (!clientData.cnpj && !clientData.cpf) {
             Alert.alert('Dados faltando', 'Por favor, preencha o CPF ou o CNPJ do cliente')
             return
         }
@@ -529,10 +529,10 @@ function NewVisit() {
                             </View>
                         ))}
                     </View>
-                    <Button mode="contained" onPress={pickImageFromGallery} style={styles.button}>
+                    <Button mode="contained" onPress={() => pickImageFromGallery('visit')} style={styles.button}>
                         Selecionar da Galeria
                     </Button>
-                    <Button mode="contained" onPress={takePhoto} style={styles.button}>
+                    <Button mode="contained" onPress={() => takePhoto('visit')} style={styles.button}>
                         Tirar Foto
                     </Button>
                 </Card.Content>
