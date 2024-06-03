@@ -264,15 +264,19 @@ function NewVisit() {
             Alert.alert('Dados faltando', 'Desculpe, algum problema ocorreu obtendo o endereço. Você pode: \n1. Verificar se o GPS está ligado. \n2. Verificar a conexão com a Internet. \n3. Fechar e abrir novamente o app e tentar novamente')
             return
         }
-        if (!clientData.cnpj && !clientData.cpf) {
-            Alert.alert('Dados faltando', 'Por favor, preencha o CPF ou o CNPJ do cliente')
+        if (typeEntity === 'legal-entity' && !clientData.cnpj) {
+            Alert.alert('Dados faltando', 'Por favor, preencha o CNPJ do cliente')
+            return
+        }
+        if (typeEntity === 'individual' && !clientData.cpf) {
+            Alert.alert('Dados faltando', 'Por favor, preencha o CPF do cliente')
             return
         }
         if (!clientData.name) {
             Alert.alert('Dados faltando', 'Por favor, preencha o nome do cliente')
             return
         }
-        if (!clientData.fantasyName) {
+        if (typeEntity === 'legal-entity' && !clientData.fantasyName) {
             Alert.alert('Dados faltando', 'Por favor, preencha o nome fantasia do cliente')
             return
         }
